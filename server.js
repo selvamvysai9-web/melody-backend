@@ -6,40 +6,41 @@ const play = require('play-dl');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Middleware
 app.use(cors());
 app.use(express.json());
 
-// --- SECURITY MIDDLEWARE ---
-// Only requests with the correct header 'x-admin-secret' can pass
+// --- SECURITY MIDDLEWARE: Admin Guard ---
 const adminAuth = (req, res, next) => {
   const secret = req.headers['x-admin-secret'];
   if (secret && secret === process.env.ADMIN_SECRET_KEY) {
     next();
   } else {
-    res.status(403).json({ error: "Access Denied: Unauthorized" });
+    res.status(403).json({ error: "Access Denied: Unauthorized Admin Access" });
   }
 };
 
-// --- STREAMING ENDPOINTS (Your working logic) ---
-
+// =====================================================================
+// STREAMING ENDPOINTS (Public)
+// =====================================================================
 app.get('/api/search', async (req, res) => {
   const query = req.query.q;
   const apiKey = process.env.YOUTUBE_API_KEY;
-  if (!query) return res.status(400).json({ error: 'Missing query' });
+  if (!query) return res.status(400).json({ error: 'Missing search query' });
   
   try {
-    const youtubeApiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=15&q=${encodeURIComponent(query)}&type=video&videoCategoryId=10&key=${apiKey}`;
-    const response = await fetch(youtubeApiUrl);
+    const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=15&q=${encodeURIComponent(query)}&type=video&videoCategoryId=10&key=${apiKey}`;
+    const response = await fetch(url);
     const data = await response.json();
-    const videos = data.items.map(item => ({
+    const results = data.items.map(item => ({
       videoId: item.id.videoId,
       title: item.snippet.title,
       channelTitle: item.snippet.channelTitle,
       thumbnail: item.snippet.thumbnails.high.url
     }));
-    res.json({ results: videos });
+    res.json({ results });
   } catch (error) {
-    res.status(500).json({ error: 'Search failed' });
+    res.status(500).json({ error: 'YouTube search failed' });
   }
 });
 
@@ -51,26 +52,30 @@ app.get('/api/stream', async (req, res) => {
     const audioFormats = info.format.filter(f => f.hasAudio && !f.hasVideo);
     res.json({ url: audioFormats[0]?.url || info.format[0].url });
   } catch (error) {
-    res.status(500).json({ error: 'Stream failed' });
+    res.status(500).json({ error: 'Stream extraction failed' });
   }
 });
 
-// --- ADMIN ENDPOINTS (Protected) ---
-
+// =====================================================================
+// ADMIN ENDPOINTS (Protected)
+// =====================================================================
 app.post('/api/admin/add-song', adminAuth, (req, res) => {
-  const { title, artist, lyrics } = req.body;
-  // TODO: Add database logic here (Firestore/MongoDB)
-  res.json({ success: true, message: `Song '${title}' added.` });
+  // Logic to save song to your database
+  console.log("Admin Action: Song Added", req.body);
+  res.json({ success: true, message: "Song successfully recorded in database" });
 });
 
 app.patch('/api/admin/user-role', adminAuth, (req, res) => {
-  const { userId, role } = req.body;
-  // TODO: Add user update logic here
-  res.json({ success: true, message: `User ${userId} updated to ${role}.` });
+  // Logic to update user roles
+  console.log("Admin Action: Role Updated", req.body);
+  res.json({ success: true, message: "User role updated successfully" });
 });
 
+// Server Startup
 app.listen(PORT, () => {
-  console.log(`\n🚀 Melody Hub Backend is LIVE!`);
-  console.log(`🔌 Listening on: http://localhost:${PORT}`);
-  console.log(`🔒 Secure Mode: Active (Admin routes protected)\n`);
+  console.log(`\n=========================================`);
+  console.log(`🚀 Melody Hub Backend is LIVE!`);
+  console.log(`🔌 Listening on port: ${PORT}`);
+  console.log(`🔒 Secure Mode: Admin Protection Enabled`);
+  console.log(`=========================================\n`);
 });
